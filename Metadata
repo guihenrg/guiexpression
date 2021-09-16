@@ -1,0 +1,320 @@
+#Load the CummeRbund package
+#install.packages("pheatmap")
+library(pheatmap)
+
+@@@@@@@@@@@@@@@@@@@@@@
+@ Set your directory @
+@@@@@@@@@@@@@@@@@@@@@@
+
+setwd("FILE1")
+
+@@@@@@@@@@@@@@@@@@@@
+@ color definitions @
+@@@@@@@@@@@@@@@@@@@@
+
+@Colors
+tuschl_colormap = c("#000000", "#000B80", "#040E7D", "#08117B", "#0C1479", 
+                    "#101877", "#151B75", "#191E73", "#1D2171", "#21246F", "#25286D", "#292B6B", 
+                    "#2D2E69", "#313167", "#353565", "#3A3863", "#3E3B61", "#423E5F", "#46415D", 
+                    "#4A455A", "#4E4858", "#524B56", "#564E54", "#5A5252", "#5F5550", "#63584E", 
+                    "#675B4C", "#6B5E4A", "#6F6248", "#736546", "#776844", "#7B6B42", "#806F40", 
+                    "#84723E", "#88753C", "#8C783A", "#907B38", "#947F35", "#988233", "#9C8531", 
+                    "#A0882F", "#A58C2D", "#A98F2B", "#AD9229", "#B19527", "#B59825", "#B99C23", 
+                    "#BD9F21", "#C1A21F", "#C5A51D", "#CAA91B", "#CEAC19", "#D2AF17", "#D6B215", 
+                    "#DAB613", "#DEB910", "#E2BC0E", "#E6BF0C", "#EAC20A", "#EFC608", "#F3C906", 
+                    "#F7CC04", "#FBCF02")
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@ I found some a color assignment directory. All color assignments will be pasted into command file @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#Please check for correctness and Uncomment if not needed @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+myannotation="FILE1.csv"
+myfile <- "mature.total.merged"
+tabledir <- "Tables"
+outputdir <- "Clustering"
+metadir <- "Metadata"
+
+dir.create(paste0(outputdir, sep=""),showWarnings = TRUE)
+
+an <- read.csv(paste0(metadir,"/",myannotation, sep=""), header=1)
+str(an)
+rownames(an) <- an$ShortID
+an$Batch <- as.factor(paste0("B",an$SeqBatch))
+an$Adapter <- as.factor(paste0("A",an$SeqAda))
+an$Index <- as.factor(an$SeqIdx)
+an$Batch
+an$Adapter
+an$Index
+SelSamples <- an 
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@ Loading merged_stats tables for decisions about processing and analysis @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+mtables="KMGG_HEK293KO1rpt2_cells_B186-189_NextSeq.merged_stats"
+mergedtables <- read.csv(paste0(metadir,"/",mtables,".csv", sep=""), row.names=1, header=1, colClasses=c("character"))
+str(mergedtables)
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@ remove all values with commas as 1000-separators, convert all variables except "category" to numeric @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+for (n in colnames(mergedtables)) {
+  print(n)
+  if (!(n=="category")) {
+    #colnames(mergedtables) %in% n
+    mergedtables[,colnames(mergedtables) == n] <- as.numeric(gsub(",","",(mergedtables[,colnames(mergedtables) == n])))
+  } 
+}
+str(mergedtables)
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@ Creating a combined metadata and annotation dataframe @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+mergedtables$ShortID <- as.factor(rownames(mergedtables))
+mergedtables$ShortID2 <- mergedtables$ShortID
+
+an$ShortID3 <- an$ShortID
+
+metadata <- merge(an, mergedtables, by.x="ShortID", by.y="ShortID", all=TRUE)
+metadata$ShortID2 <- factor(metadata$ShortID2, levels=unique(as.character(metadata$ShortID2)))
+metadata$ShortID2 == metadata$ShortID3
+metadata$ShortID2 <- NULL
+metadata$ShortID3 <- NULL
+mergedtables$ShortID2 <- NULL
+an$ShortID3 <- NULL
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@ creating a naming scheme that R uses for colnames of data files, which includes addressing problems with leading number characters @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+##if shortID starts with a number, let shortid4 start with an X:
+#isnumber <- grepl("\\d", substr(metadata$ShortID, 1, 1))==T
+#metadata$ShortID4 <- as.character(metadata$ShortID)
+#metadata$ShortID4
+#metadata[isnumber,]$ShortID4 <- as.character(paste0("X",metadata[isnumber,]$ShortID4,sep=""))
+#metadata$ShortID4
+##if shortID contains a dash ("_"), replace the dash by a dot:
+#metadata$ShortID4 <- gsub("-", ".",metadata$ShortID4)
+#metadata$ShortID4
+
+SelSamples <- metadata
+SelSamples$Cellline
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@ Defining, which samples to consider for processing -> for data statistics and future analyses @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+@ remove water samples @
+SelSamples <- SelSamples[!(SelSamples$CellCulture == "WATER"),]
+
+@ consider only relevant data @
+#anfilt <- data.frame(SelSamples$ShortID,SelSamples$Batch, SelSamples$Adapter, SelSamples$Index,SelSamples$Cellline,SelSamples$CellCulture,SelSamples$Replicate,SelSamples$nmiRNAperminputRNA_amolper100ng)
+#anfilt <- data.frame(SelSamples$Batch, SelSamples$Adapter, SelSamples$Index,SelSamples$Techrep,SelSamples$Cellline,SelSamples$CellCulture)
+anfilt <- data.frame(SelSamples$Batch, SelSamples$Adapter,SelSamples$Techrep,SelSamples$Cellline,SelSamples$CellCulture, SelSamples$miRNAp100ng.amol.,SelSamples$miRNA)
+
+rownames(anfilt) <- SelSamples$ShortID
+colnames(anfilt) <- gsub("SelSamples.","",colnames(anfilt))
+colnames(anfilt) 
+anfilt <- droplevels(anfilt)
+
+@ Now read in the color scales for the selected metadata using pallettes defined in separate files @
+@ The next lines were used to generate pallette files. They are not needed, once these files exist @
+
+@write.table(levels(anfilt$Batch), "color_assignments/batch.txt", append = FALSE, dec = ".",
+@                        row.names = FALSE, col.names = FALSE)
+
+@write.table(levels(anfilt$Adapter), "color_assignments/adapter.txt", append = FALSE, dec = ".",
+@            row.names = FALSE, col.names = FALSE)
+
+@write.table(levels(anfilt$Index), "color_assignments/index.txt", append = FALSE, dec = ".",
+@                        row.names = FALSE, col.names = FALSE)
+
+@write.table(levels(anfilt$Replicate), "color_assignments/Replicate.txt", append = FALSE, dec = ".",
+@                                    row.names = FALSE, col.names = FALSE)
+
+@write.table(levels(anfilt$FILE1), "color_assignments/FILE1.txt", append = FALSE, dec = ".",
+@            row.names = FALSE, col.names = FALSE)
+
+@write.table(levels(anfilt$FILE1), "color_assignments/FILE1.txt", append = FALSE, dec = ".",
+@            row.names = FALSE, col.names = FALSE)
+
+
+temp = read.table("color_assignments/adapter.col", sep ="\t", fill=TRUE, header=FALSE, as.is=TRUE)
+Adapter = temp[,2]
+names(Adapter) = temp[,1]
+
+temp = read.table("color_assignments/batch.col", sep ="\t", fill=TRUE, header=FALSE, as.is=TRUE)
+Batch = temp[,2]
+names(Batch) = temp[,1]
+
+temp = read.table("color_assignments/index.col", sep ="\t", fill=TRUE, header=FALSE, as.is=TRUE)
+Index = temp[,2]
+names(Index) = temp[,1]
+
+temp = read.table("color_assignments/FILE1.col", sep ="\t", fill=TRUE, header=FALSE, as.is=TRUE)
+CellCulture = temp[,2]
+names(FILE1) = temp[,1]
+FILE1 <- FILE1[names(FILE1) %in% levels(anfilt$FILE1)]
+
+temp = read.table("color_assignments/Cellline.col", sep ="\t", fill=TRUE, header=FALSE, as.is=TRUE)
+FILE1 = temp[,2]
+names(FILE1) = temp[,1]
+FILE1 <- FILE1[names(FILE1) %in% levels(anfilt$FILE1)]
+
+temp = read.table("color_assignments/Techrep.col", sep ="\t", fill=TRUE, header=FALSE, as.is=TRUE)
+Techrep = temp[,2]
+names(Techrep) = temp[,1]
+
+@ now read in read counts @
+@ don't use headers or row.names, since headers do not correspond to R naming conventions @
+data = read.table(paste0(tabledir,"/",myfile,".txt"),stringsAsFactors = FALSE, header = FALSE, row.names = 1)
+
+@ remove mouse entries @
+data <- data[!(grepl("mmu",rownames(data))),]
+
+@ remove rat entries @
+data <- data[!(grepl("rno",rownames(data))),]
+
+@ extract samplenames from first row of datatable @
+samplenames <- as.character(data[1,])
+
+@ extract only the string after the last occurrance of a slash @
+simplenames <- sub(".*\\/", "", samplenames)
+simplenames <- sub("human_and_virus_annoDB_jul2014rno-miR-325-5p", "", simplenames)
+simplenames <- sub("human_and_virus_annoDB_jul2014", "", simplenames)
+
+@ use all rows but the first, since the complicated names w. filepaths are not needed @
+data <- data[2:nrow(data),]
+
+@ apply the newly extracted simplenames @
+colnames(data) <- simplenames
+
+@ convert entries originally read in as character values into numeric values @
+data1 <- as.data.frame(sapply(data, as.numeric))
+@ copy over rownames which are otherwise lost @
+row.names(data1) <- row.names(data) 
+
+@ calculate sums of columns @
+@colsums <- as.data.frame(t(apply(data1, 2, sum)))
+@row.names(colsums) <- c("Total_counts")
+@data2 <- rbind(data1, colsums) 
+datafreq <- as.data.frame(apply(data1,2,function(x){x/sum(x)}))
+@freqsums <- as.data.frame(t(apply(datafreq, 2, sum)))
+write.csv(data1,paste0(tabledir,"/",myfile,"V5.csv"))
+write.csv(datafreq,paste0(tabledir,"/",myfile,"V5.fr.csv"))
+
+
+@ filter metadata first by FILE1, then by FILE1 (resulting in the order priority: FILE1, FILE1, Techrep) @
+anfilt <- anfilt[order(anfilt$FILE1),]
+anfilt <- anfilt[order(anfilt$FILE1),]
+anfilt
+
+@ filter out only this samples previously selected for processing @
+datasel <- data1[,colnames(data1) %in% rownames(anfilt)]
+datasel <- datasel[, order(match(colnames(datasel),rownames(anfilt)))]
+
+freqsel <- datafreq[,colnames(datafreq) %in% rownames(anfilt)]
+freqsel <- freqsel[, order(match(colnames(freqsel),rownames(anfilt)))]
+
+@str(mat)
+@ Simplify names of clusters/merged/miRs to only numbers and essential elements @
+rownames(datasel) <- gsub('cluster-', '', rownames(datasel))
+rownames(datasel) <- gsub('hsa-', '', rownames(datasel))
+rownames(datasel) <- gsub('mir-', '', rownames(datasel))
+rownames(datasel) <- gsub('miR-', '', rownames(datasel))
+rownames(datasel) <- gsub('STAR', '*', rownames(datasel))
+rownames(datasel) <- gsub("\\s*\\(1)","",as.character(rownames(datasel)))
+remove="all others "
+datasel <- datasel[!rownames(datasel) %in% remove,] 
+row.names(freqsel) <- rownames(datasel)
+
+@ Writing out some files to document the processing and sample selection (for later data deposition) @
+write.csv(datasel,paste0(tabledir,"/",myfile,"V5.sel.csv",sep=""))
+write.csv(freqsel,paste0(tabledir,"/",myfile,"V5.fr.sel_selsamples.csv",sep=""))
+write.csv(anfilt,paste0(metadir,"/",myfile,"V5.meta.sel.csv",sep=""))
+
+@ calculate combined Top (=most abundant) miRNAs contributing to up to 85% of the total counts @
+@ remark: We use read frequencies and a combined total frequency of 0.85, which is synonymous to the to 85% @
+
+threshold <- 0.85
+
+@ Generating a dataframe containing all entries of the main dataset, but as logical entities >>> a miRNA list of main contributors for all samples, several entries @
+miRlistbysample <- as.data.frame(sapply(freqsel, as.logical))
+rownames(miRlistbysample) <- rownames(freqsel)
+
+@ Setting all entries in miRlist as non-contributors @
+miRlistbysample[,]<- FALSE
+
+@ Generating a dataframe containing all miRNA entries >>> a miRNA list of main contributors across all samples, only one entry @
+miRList <- as.data.frame(miRlistbysample[,1])
+rownames(miRList) <- rownames(miRlistbysample)
+colnames(miRList) <- "Combined"
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@ Now checking a sample entries for their Top 85% contributors @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+for (n in colnames(freqsel)) {
+  #Introducting the variable test for the sample actually studied
+  test <- as.data.frame(freqsel[,colnames(freqsel)==n])
+  colnames(test) <- "values"
+  test$miRNAs <- rownames(freqsel)
+  # Sort miRNA abundances in descending order
+  test <- as.data.frame(test[order(-test$values),])
+  #now checking abundances starting with the most abundant miRNA, then going down the list to the least abundant miRNA
+  abundance <- 0
+  for (m in test$miRNAs) {
+      #now checking abundances starting with the most abundant miRNA, then going down the list to the least abundant miRNA
+      abundance <- abundance + test[test$miRNAs==m,]$values
+      if (abundance <= threshold) {
+        miRlistbysample[rownames(miRlistbysample)==m,n] <- TRUE
+        miRList[rownames(miRList)==m,] <- TRUE
+        } 
+      }
+  }
+
+@ Just checking the results, if the lists are correctly defined, all the read frequencies of each sample entries should add up to something close to the threshold value @
+output <- NULL
+for (o in colnames(freqsel)) {
+  p <- sum(freqsel[miRlistbysample[,colnames(freqsel)==o],colnames(freqsel)==o])
+  output <- c(output,p)
+}
+
+output
+
+@ now generate a frequency table that only contains the most abundant miRNAs contributing to 85% of the reads @
+freqselfilt <- freqsel[miRList$Combined,]
+
+mat = as.matrix(freqselfilt)
+str(mat)
+head(mat)
+
+log2mat=log2(mat+0.0000001)
+head(log2mat)
+
+pheatmap(log2mat, scale = "none", color=tuschl_colormap,
+         annotation_legend=T,
+         legend=T,
+         border_color = NA, show_colnames=T,
+         cellheight = 10,
+         cellwidth = 10,
+         show_rownames = T, fontsize_col = 10, fontsize_row = 10, 
+         cluster_rows = T,cluster_cols = F,
+         clustering_distance_rows = "manhattan",
+         clustering_distance_cols = "manhattan",
+         clustering_method = "complete", 
+         annotation = anfilt,
+         annotation_colors = list(Batch=Batch,Adapter=Adapter,Cellline=Cellline,CellCulture=CellCulture,Techrep=Techrep),
+         filename = paste0(outputdir,"/",myfile,"V5_Top85_sup.pdf"))
+
+
+@@@@-end new part
+
